@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Plus, ZoomIn, ZoomOut } from "lucide-react";
 
 const Board = () => {
   const [zoom, setZoom] = useState(1);
@@ -122,27 +123,27 @@ const Board = () => {
       {/* Controls */}
       <div className="absolute top-4 left-4 z-10 flex gap-4">
         <button 
-          onClick={() => handleZoomButton(true)} 
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          Zoom In
-        </button>
-        <button 
-          onClick={() => handleZoomButton(false)} 
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          Zoom Out
-        </button>
-        <button 
-          onClick={handleAddItem} 
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-        >
-          Add Item
-        </button>
-        <span className="bg-gray-200 px-4 py-2 rounded">
-          Zoom: {(zoom * 100).toFixed(0)}%
-        </span>
-      </div>
+    onClick={() => handleZoomButton(true)} 
+    className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
+  >
+    <ZoomIn size={20} />
+  </button>
+  <button 
+    onClick={() => handleZoomButton(false)} 
+    className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
+  >
+    <ZoomOut size={20} />
+  </button>
+</div>
+
+<div className="absolute top-4 right-4 z-10">
+  <button 
+    onClick={handleAddItem} 
+    className="bg-green-600 text-white p-2 rounded-sm hover:bg-green-900"
+  >
+    <Plus size={40} />
+  </button>
+</div>
 
       {/* Infinite Board */}
       <div
