@@ -7,6 +7,8 @@ const Post = require('./models/Post');
 const Flyer = require('./models/Flyer');
 const Note = require('./models/Note');
 const Comment = require('./models/Comment');
+const multer = require('multer');
+const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3001;
