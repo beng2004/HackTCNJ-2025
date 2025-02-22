@@ -2,16 +2,7 @@ import { useState } from 'react';
 import Board from './components/Board'
 function App() {
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
-  const [posts, setPosts] = useState([
-    // { id: 1, title: 'Meeting at 3 PM', content: 'Don\'t forget to attend the team meeting!' },
-    // { id: 2, title: 'Project Deadline', content: 'The project deadline is next Friday.' },
-    // { id: 3, title: 'Team Lunch', content: 'We are having a team lunch tomorrow at 1 PM.' },
-    // { id: 4, title: 'Office Closed', content: 'The office will be closed for maintenance next Monday.' },
-    // { id: 5, title: 'New Software Update', content: 'The software update will be applied this weekend.' },
-    // { id: 6, title: 'Quarterly Reviews', content: 'Quarterly performance reviews will begin next week.' },
-    // { id: 7, title: 'Health & Safety', content: 'Don\'t forget to follow the new safety guidelines at work.' },
-  ]);
-
+  
   return (
     <div className="min-h-screen flex">
       {/* Sidebar */}
@@ -59,11 +50,10 @@ function App() {
       <main className="flex-1 bg-gray-100 p-6">
         <header className="mb-6 flex items-center justify-between">
           <h2 className="text-3xl font-semibold">Your Board</h2>
-          <button className="bg-blue-500 text-white px-4 py-2 rounded">New Post</button>
         </header>
 
         {/* Scrollable Board Section */}
-        <div className="bg-[#deb887] shadow-lg rounded-lg p-4 h-[calc(100vh-10rem)] overflow-y-auto">
+        <div className="bg-[#deb887] shadow-lg rounded-lg  h-[calc(100vh-10rem)] overflow-y-auto border-2 border-[#7B3F00]">
           <Board/>
         </div>
       </main>

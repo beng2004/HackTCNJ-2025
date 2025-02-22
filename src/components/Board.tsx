@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Plus, ZoomIn, ZoomOut } from "lucide-react";
+import ExpandablePlusButton from "./PlusButton";
 
 const Board = () => {
   const [zoom, setZoom] = useState(1);
@@ -137,12 +138,7 @@ const Board = () => {
 </div>
 
 <div className="absolute top-4 right-4 z-10">
-  <button 
-    onClick={handleAddItem} 
-    className="bg-green-600 text-white p-2 rounded-sm hover:bg-green-900"
-  >
-    <Plus size={40} />
-  </button>
+  <ExpandablePlusButton/>
 </div>
 
       {/* Infinite Board */}
@@ -157,8 +153,9 @@ const Board = () => {
         {items.map((item) => (
           <div
             key={item.id}
-            className="absolute bg-yellow-300 p-2 rounded shadow-lg cursor-default"
+            className="absolute bg-[#F9FFB5] p-2 rounded shadow-lg cursor-default"
             style={{
+              scale: 2,
               left: item.x,
               top: item.y,
               transform: `scale(${1})`,
