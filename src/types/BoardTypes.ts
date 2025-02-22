@@ -3,6 +3,7 @@ export type BoardItem = {
     x: number;
     y: number;
     type: 'note' | 'flyer';
+    rotation: number;
   };
   
   export type Note = BoardItem & {

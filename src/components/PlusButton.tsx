@@ -1,24 +1,41 @@
 import { useState } from 'react';
 import { Plus, Upload, X } from 'lucide-react';
+import { Note, Flyer } from '../types/BoardTypes';
 
-const ExpandablePlusButton = () => {
+interface ExpandablePlusButtonProps {
+  onAddItem: (type: 'note' | 'flyer', data: Partial<Note | Flyer>) => void;
+}
+
+const ExpandablePlusButton = ({ onAddItem }: ExpandablePlusButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFlyerModalOpen, setIsFlyerModalOpen] = useState(false);
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
   const [caption, setCaption] = useState('');
+  const [noteText, setNoteText] = useState('');
 
   const handleNewFlyerClick = () => {
     setIsOpen(false);
-    setIsModalOpen(true);
+    setIsFlyerModalOpen(true);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
+  const handleNewPostItClick = () => {
+    setIsOpen(false);
+    setIsNoteModalOpen(true);
+  };
+
+  const closeFlyerModal = () => {
+    setIsFlyerModalOpen(false);
     setImagePreview('');
     setCaption('');
   };
 
-  const handleImageChange = (e) => {
+  const closeNoteModal = () => {
+    setIsNoteModalOpen(false);
+    setNoteText('');
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
@@ -29,10 +46,23 @@ const ExpandablePlusButton = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleFlyerSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission
-    closeModal();
+    if (imagePreview) {
+      onAddItem('flyer', {
+        imageUrl: imagePreview,
+        caption: caption
+      });
+      closeFlyerModal();
+    }
+  };
+
+  const handleNoteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (noteText.trim()) {
+      onAddItem('note', { text: noteText });
+      closeNoteModal();
+    }
   };
 
   return (
@@ -59,7 +89,7 @@ const ExpandablePlusButton = () => {
               New Flyer
             </button>
             <button 
-              onClick={() => console.log('New Post-it clicked')}
+              onClick={handleNewPostItClick}
               className="w-full text-left px-4 py-2 text-gray-700 hover:bg-orange-400 hover:text-white transition-colors duration-200 block"
             >
               New Post-it
@@ -76,32 +106,28 @@ const ExpandablePlusButton = () => {
         />
       )}
 
-      {/* Modal */}
-      {isModalOpen && (
+      {/* Flyer Modal */}
+      {isFlyerModalOpen && (
         <div 
           className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4"
-          onClick={closeModal}
+          onClick={closeFlyerModal}
         >
           <div 
             className="relative bg-white rounded-xl shadow-xl w-full max-w-md"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button */}
             <button
-              onClick={closeModal}
+              onClick={closeFlyerModal}
               className="absolute right-4 top-4 text-gray-500 hover:text-gray-700"
             >
               <X size={24} />
             </button>
 
-            {/* Modal header */}
             <div className="px-6 py-4 border-b border-gray-200">
               <h2 className="text-2xl font-semibold text-gray-800">Create New Flyer</h2>
             </div>
 
-            {/* Modal content */}
-            <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {/* Image upload area */}
+            <form onSubmit={handleFlyerSubmit} className="p-6 space-y-6">
               <div className="relative">
                 <input
                   type="file"
@@ -131,7 +157,6 @@ const ExpandablePlusButton = () => {
                 </label>
               </div>
 
-              {/* Caption input */}
               <div className="space-y-2">
                 <label htmlFor="caption" className="block text-sm font-medium text-gray-700">
                   Caption
@@ -146,11 +171,10 @@ const ExpandablePlusButton = () => {
                 />
               </div>
 
-              {/* Action buttons */}
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={closeModal}
+                  onClick={closeFlyerModal}
                   className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Cancel
@@ -160,6 +184,63 @@ const ExpandablePlusButton = () => {
                   className="flex-1 px-4 py-2 text-white bg-blue-900 rounded-lg hover:bg-blue-600 transition-colors"
                 >
                   Create Flyer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Note Modal */}
+      {isNoteModalOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-center items-center p-4"
+          onClick={closeNoteModal}
+        >
+          <div 
+            className="relative bg-white rounded-xl shadow-xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeNoteModal}
+              className="absolute right-4 top-4 text-gray-500 hover:text-gray-700"
+            >
+              <X size={24} />
+            </button>
+
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-2xl font-semibold text-gray-800">Create New Post-it</h2>
+            </div>
+
+            <form onSubmit={handleNoteSubmit} className="p-6 space-y-6">
+              <div className="space-y-2">
+                <label htmlFor="noteText" className="block text-sm font-medium text-gray-700">
+                  Note Text
+                </label>
+                <textarea
+                  id="noteText"
+                  rows={4}
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  placeholder="Enter your note text..."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeNoteModal}
+                  className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!noteText.trim()}
+                  className="flex-1 px-4 py-2 text-white bg-blue-900 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  Create Note
                 </button>
               </div>
             </form>
