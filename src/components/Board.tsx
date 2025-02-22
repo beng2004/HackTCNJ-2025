@@ -12,14 +12,36 @@ const Board = () => {
 
   const boardRef = useRef<HTMLDivElement>(null);
 
-  // Zoom controls
-  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.1, 3));
-  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.1, 0.5));
+  // Helper function to get relative mouse position
+  const getRelativeMousePosition = (e: React.WheelEvent | MouseEvent) => {
+    if (!boardRef.current) return { x: 0, y: 0 };
+    const rect = boardRef.current.getBoundingClientRect();
+    return {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+  };
 
   // Scroll-based zooming
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
-    e.deltaY < 0 ? handleZoomIn() : handleZoomOut();
+    
+    const mousePos = getRelativeMousePosition(e);
+    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+    const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.1), 10); // Allow zoom from 0.1x to 10x
+    
+    // Calculate new offset to keep mouse position fixed
+    const mouseXBeforeZoom = (mousePos.x - offset.x) / zoom;
+    const mouseYBeforeZoom = (mousePos.y - offset.y) / zoom;
+    const mouseXAfterZoom = (mousePos.x - offset.x) / newZoom;
+    const mouseYAfterZoom = (mousePos.y - offset.y) / newZoom;
+    
+    setOffset(prev => ({
+      x: prev.x + (mouseXAfterZoom - mouseXBeforeZoom) * newZoom,
+      y: prev.y + (mouseYAfterZoom - mouseYBeforeZoom) * newZoom
+    }));
+    
+    setZoom(newZoom);
   };
 
   // Global mouse event handlers
@@ -49,11 +71,34 @@ const Board = () => {
 
   // Board-specific mouse handlers
   const handleMouseDown = (e: React.MouseEvent) => {
-    // Only start dragging on primary (left) mouse button
     if (e.button !== 0) return;
-    
     setDragging(true);
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  };
+
+  // Handle button zooming
+  const handleZoomButton = (zoomIn: boolean) => {
+    if (!boardRef.current) return;
+    
+    const rect = boardRef.current.getBoundingClientRect();
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    const zoomFactor = zoomIn ? 1.1 : 0.9;
+    const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.1), 10);
+    
+    // Calculate new offset to keep center position fixed
+    const centerXBeforeZoom = (centerX - offset.x) / zoom;
+    const centerYBeforeZoom = (centerY - offset.y) / zoom;
+    const centerXAfterZoom = (centerX - offset.x) / newZoom;
+    const centerYAfterZoom = (centerY - offset.y) / newZoom;
+    
+    setOffset(prev => ({
+      x: prev.x + (centerXAfterZoom - centerXBeforeZoom) * newZoom,
+      y: prev.y + (centerYAfterZoom - centerYBeforeZoom) * newZoom
+    }));
+    
+    setZoom(newZoom);
   };
 
   // Add new sticky note
@@ -77,13 +122,13 @@ const Board = () => {
       {/* Controls */}
       <div className="absolute top-4 left-4 z-10 flex gap-4">
         <button 
-          onClick={handleZoomIn} 
+          onClick={() => handleZoomButton(true)} 
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
           Zoom In
         </button>
         <button 
-          onClick={handleZoomOut} 
+          onClick={() => handleZoomButton(false)} 
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
           Zoom Out
@@ -94,6 +139,9 @@ const Board = () => {
         >
           Add Item
         </button>
+        <span className="bg-gray-200 px-4 py-2 rounded">
+          Zoom: {(zoom * 100).toFixed(0)}%
+        </span>
       </div>
 
       {/* Infinite Board */}
@@ -112,7 +160,7 @@ const Board = () => {
             style={{
               left: item.x,
               top: item.y,
-              transform: `scale(${1 / zoom})`,
+              transform: `scale(${1})`,
               transformOrigin: "center",
             }}
           >
