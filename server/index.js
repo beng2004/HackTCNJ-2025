@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
-require('dotenv').config({ path: __dirname + '/.env' });
-console.log("MONGO_URI:", process.env.MONGO_URI);
+require('dotenv').config();
+// console.log("MONGO_URI:", process.env.MONGO_URI);
 const Board = require('./models/Board');
 const Post = require('./models/Post');
 const Flyer = require('./models/Flyer');
@@ -13,7 +13,21 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3001;
 
+// Multer configuration
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, 'uploads'));
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({ storage: storage });
+
 app.use(express.json());
+app.use('/uploads', express.static('server/uploads'));
 
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
@@ -111,6 +125,39 @@ app.get('/comments', async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
+});
+
+/**
+ * @route POST /upload
+ * @desc Upload a file to the server
+ * @access Public
+ */
+app.post('/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'BenG7 sucks' });
+    }
+
+    res.status(200).json({ message: 'File uploaded successfully', filename: req.file.filename });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+app.get('/preview/:filename', (req, res) => {
+  const { filename } = req.params;
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Image Preview</title>
+    </head>
+    <body>
+      <h1>Image Preview</h1>
+      <img src="/uploads/${filename}" alt="Image Preview" />
+    </body>
+    </html>
+  `);
 });
 
 app.listen(port, () => {
