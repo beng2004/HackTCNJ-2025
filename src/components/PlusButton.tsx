@@ -46,24 +46,24 @@ const ExpandablePlusButton = ({ onAddItem }: ExpandablePlusButtonProps) => {
     }
   };
 
-  const handleFlyerSubmit = (e: React.FormEvent) => {
+  const handleFlyerSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (imagePreview) {
-      onAddItem('flyer', {
-        imageUrl: imagePreview,
-        caption: caption
-      });
-      closeFlyerModal();
+        onAddItem('flyer', {
+            imageUrl: imagePreview,
+            caption: caption
+        });
+        closeFlyerModal();
     }
-  };
+};
 
-  const handleNoteSubmit = (e: React.FormEvent) => {
+const handleNoteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (noteText.trim()) {
-      onAddItem('note', { text: noteText });
-      closeNoteModal();
+        onAddItem('note', { text: noteText });
+        closeNoteModal();
     }
-  };
+};
 
   return (
     <div className="relative inline-block">

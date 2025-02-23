@@ -2,8 +2,17 @@ import { useState, useRef, useEffect } from "react";
 import { Plus, ZoomIn, ZoomOut } from "lucide-react";
 import ExpandablePlusButton from "./PlusButton";
 import { BoardItem, Note, Flyer } from "../types/BoardTypes";
+import axios from 'axios';
 
 const Board = () => {
+    const [boardId, setBoardId] = useState<number>();
+
+    const changeBoard = (newBoardId: number) => {
+      setBoardId(newBoardId);
+    };
+    //states for api getting current posts
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<Error | null>(null);
     const [zoom, setZoom] = useState(1);
     const [dragging, setDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -11,10 +20,63 @@ const Board = () => {
     const [selectedItem, setSelectedItem] = useState<number | null>(null);
     const [itemDragging, setItemDragging] = useState(false);
     const [rotating, setRotating] = useState(false);
-    const [items, setItems] = useState<BoardItem[]>([
-      { id: 1, x: 100, y: 100, type: 'note', text: "Note 1", rotation: 0 },
-      { id: 2, x: 300, y: 200, type: 'note', text: "Note 2", rotation: 0 },
-    ]);
+    const [items, setItems] = useState<BoardItem[]>([]);
+    // Make the API call on page load and refresh
+    useEffect(() => {
+      changeBoard(0)
+      
+      const fetchData = async () => {
+          setLoading(true);
+          try {
+              const response = await axios.get('https://hack.tcnj.ngrok.app/posts', {
+                headers: {
+                  'Content-Type': 'application/json',
+                  'boardId': boardId, // Custom header for board ID #TODO check for boardid on backend  
+                },
+              });
+              console.log('API Response:', response.data);
+  
+              const mappedItems: BoardItem[] = response.data.map((item: any) => {
+                  if (item.type === 'note') {
+                      return {
+                          author: item.author,
+                          parentBoardId: item.parentBoardId,
+                          id: item.postId,
+                          x: item.x, // Default or randomly generated
+                          y: item.y, // Default or randomly generated
+                          rotation: item.rotation, // Default rotation
+                          date: item.date,
+                          type: 'note',
+                          text: item.content || item.text || '', // Some objects use 'content', some 'text'
+                      } as Note;
+                  } else if (item.type === 'flyer') {
+                      return {
+                          author: item.author,
+                          parentBoardId: item.parentBoardId,
+                          id: item.postId,
+                          x: item.x, // Default value
+                          y: item.y, // Default value
+                          rotation: item.rotation, // Default rotation
+                          date: item.date,
+                          type: 'flyer',
+                          imageUrl: 'https://hack.tcnj.ngrok.app/uploads/' + item.imageUrl,
+                          caption: item.caption || '',
+                      } as Flyer;
+                  }
+                  return null; // Ignore unrecognized types
+              }).filter(Boolean); // Remove null values
+  
+              setItems(mappedItems);
+          } catch (error) {
+              console.error('Error fetching posts:', error);
+              setError(error as Error);
+          } finally {
+              setLoading(false);
+          }
+      };
+  
+      fetchData();
+  }, []);
 
   const boardRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
@@ -59,6 +121,20 @@ const Board = () => {
       startPositionRef.current = getRelativeMousePosition(e);
     }
   };
+  const updateItemPosition = async (item: BoardItem) => {
+    try {
+      await axios.post('https://hack.tcnj.ngrok.app/update-position', {
+        postId: item.id,
+        type: item.type,
+        x: item.x,
+        y: item.y,
+        rotation: item.rotation || 0,
+        parentBoardId: boardId
+      });
+    } catch (error) {
+      console.error('Error updating item position:', error);
+    }
+  };
 
   useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent) => {
@@ -68,12 +144,17 @@ const Board = () => {
         const currentPosition = getRelativeMousePosition(e);
         const dx = (currentPosition.x - startPositionRef.current.x) / zoom;
         const dy = (currentPosition.y - startPositionRef.current.y) / zoom;
-
-        setItems(prev => prev.map(item => 
-          item.id === selectedItem
-            ? { ...item, x: item.x + dx, y: item.y + dy }
-            : item
-        ));
+        
+        setItems(prev => 
+          prev.map(item => {
+            if (item.id === selectedItem) {
+              const newX = item.x + dx;
+              const newY = item.y + dy;
+              return { ...item, x: newX, y: newY };
+            }
+            return item;
+          })
+        );
         startPositionRef.current = currentPosition;
       }
       
@@ -91,7 +172,13 @@ const Board = () => {
       }
     };
 
-    const handleGlobalMouseUp = () => {
+    const handleGlobalMouseUp = async () => {
+      if (selectedItem) {
+        const updatedItem = items.find(item => item.id === selectedItem);
+        if (updatedItem) {
+          await updateItemPosition(updatedItem);
+        }
+      }
       setItemDragging(false);
       setRotating(false);
     };
@@ -105,7 +192,7 @@ const Board = () => {
       window.removeEventListener('mousemove', handleGlobalMouseMove);
       window.removeEventListener('mouseup', handleGlobalMouseUp);
     };
-  }, [itemDragging, rotating, selectedItem, items, zoom]);
+  }, [itemDragging, rotating, selectedItem, items, zoom, boardId]);
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
@@ -180,111 +267,183 @@ const Board = () => {
     setZoom(newZoom);
   };
 
-  const addItem = (type: 'note' | 'flyer', data: Partial<Note | Flyer>) => {
+  const addItem = async (type: 'note' | 'flyer', data: Partial<Note | Flyer>) => {
+    const now = new Date().toISOString();
+    const newId = Math.max(0, ...items.map(item => item.id)) + 1;
+    const xPos = -offset.x / zoom + 200;
+    const yPos = -offset.y / zoom + 150;
+    const rotation = (Math.random() - 0.9) * 10 * (Math.random() < 0.5 ? -1 : 1);
+
+    // Prepare the post data
+    const postData = {
+        author: "Ben",
+        date: now,
+        parentBoardId: boardId, //TODO use on backend to make sure updating correct board
+        postId: newId,
+        rotation: rotation,
+        text: data.text,
+        caption: data.caption,
+        type: type === 'note' ? 'note' : 'flyer',
+        x: xPos,
+        y: yPos,
+    };
+
+    try {
+        // First, create the post
+        if (type === 'flyer') {
+          postData.imageUrl = 'https://coffective.com/wp-content/uploads/2018/06/default-featured-image.png.jpg'; 
+        }
+        const postResponse = await axios.post('https://hack.tcnj.ngrok.app/posts', postData);
+        console.log('Post created successfully:', postResponse.data);
+
+        // If it's a flyer, handle the image upload separately
+        if (type === 'flyer' && data.imageUrl) {
+            // Convert base64 image to File object
+            const base64Response = await fetch(data.imageUrl);
+            const blob = await base64Response.blob();
+            const file = new File([blob], 'image.jpg', { type: 'image/jpeg' });
+
+            // Create FormData for image upload
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Upload the image
+            const imageResponse = await axios.post('https://hack.tcnj.ngrok.app/upload', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                    'boardId': boardId,
+                    'postId': newId
+                },
+            });
+            console.log('Image uploaded successfully:', imageResponse.data);
+        }
+    } catch (error) {
+        console.error('Error creating post or uploading image:', error);
+    }
+
+    // Create the new item for the local state
     const newItem = {
-      id: Math.max(0, ...items.map(item => item.id)) + 1,
-      x: -offset.x / zoom + 200,
-      y: -offset.y / zoom + 150,
-      type,
-      rotation: (Math.random() - 0.9) * 10 * (Math.random() < 0.5 ? -1 : 1),
-      ...data
+        id: newId,
+        x: xPos,
+        y: yPos,
+        type,
+        rotation: rotation,
+        ...data
     };
     setItems([...items, newItem]);
-  };
+};
 
   return (
     <div 
-      className="relative select-none w-full h-full overflow-hidden"
-      ref={boardRef}
-      onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
-      style={{ cursor: dragging ? "grabbing" : "grab" }}
-      onClick={() => setSelectedItem(null)}
+        className="relative select-none w-full h-full overflow-hidden"
+        ref={boardRef}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        style={{ cursor: dragging ? "grabbing" : "grab" }}
+        onClick={() => setSelectedItem(null)}
     >
-      <div className="absolute top-4 left-4 z-10 flex gap-4">
-        <button 
-          onClick={() => handleZoomButton(true)} 
-          className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
-        >
-          <ZoomIn size={20} />
-        </button>
-        <button 
-          onClick={() => handleZoomButton(false)} 
-          className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
-        >
-          <ZoomOut size={20} />
-        </button>
-      </div>
+        {loading ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-blue-900 border-t-transparent rounded-full animate-spin" />
+                    <p className="text-blue-900 font-medium">Loading board...</p>
+                </div>
+            </div>
+        ) : error ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-white">
+                <div className="text-red-600 text-center p-4">
+                    <p className="font-bold mb-2">Error loading board</p>
+                    <p>{error.message}</p>
+                </div>
+            </div>
+        ) : (
+            <>
+                <div className="absolute top-4 left-4 z-10 flex gap-4">
+                    <button 
+                        onClick={() => handleZoomButton(true)} 
+                        className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
+                    >
+                        <ZoomIn size={20} />
+                    </button>
+                    <button 
+                        onClick={() => handleZoomButton(false)} 
+                        className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
+                    >
+                        <ZoomOut size={20} />
+                    </button>
+                </div>
 
-      <div className="absolute top-4 right-4 z-10">
-        <ExpandablePlusButton onAddItem={addItem} />
-      </div>
+                <div className="absolute top-4 right-4 z-10">
+                    <ExpandablePlusButton onAddItem={addItem} />
+                </div>
 
-      <div
-        className="absolute inset-0"
-        style={{
-          transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-          transformOrigin: "top left",
-        }}
-      >
-        {items.map((item) => (
-          <div
-            key={item.id}
-            ref={(el) => {
-              if (el) itemRefs.current.set(item.id, el);
-              else itemRefs.current.delete(item.id);
-            }}
-            className={`absolute shadow-lg cursor-move group
-              ${item.type === 'note' 
-                ? 'bg-[#F9FFB5] p-2 rounded'
-                : 'bg-white rounded-lg overflow-hidden'
-              }
-              ${selectedItem === item.id ? 'ring-2 ring-blue-500' : ''}
-            `}
-            style={{
-              left: item.x,
-              top: item.y,
-              transform: `rotate(${item.rotation || 0}deg)`,
-              transformOrigin: "center",
-              width: item.type === 'flyer' ? '300px' : 'auto',
-              touchAction: 'none',
-              userSelect: 'none',
-              position: 'absolute',
-            }}
-            onMouseDown={(e) => handleItemMouseDown(e, item.id)}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div 
-              className="rotation-handle absolute -top-6 left-1/2 w-4 h-4 bg-blue-500 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-              style={{ 
-                transform: 'translateX(-50%)', 
-                zIndex: 50,
-                pointerEvents: 'auto'
-              }}
-            />
-            
-            {item.type === 'note' ? (
-              <div className="select-none">{item.text}</div>
-            ) : (
-              <div className="flex flex-col select-none">
-                <img 
-                  src={item.imageUrl} 
-                  alt={item.caption}
-                  className="w-full h-48 object-cover pointer-events-none"
-                  draggable="false"
-                />
-                {item.caption && (
-                  <p className="p-3 text-sm text-gray-700">
-                    {item.caption}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+                <div
+                    className="absolute inset-0"
+                    style={{
+                        transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                        transformOrigin: "top left",
+                    }}
+                >
+                    {items.map((item) => (
+                        <div
+                            key={item.id}
+                            ref={(el) => {
+                                if (el) itemRefs.current.set(item.id, el);
+                                else itemRefs.current.delete(item.id);
+                            }}
+                            className={`absolute shadow-lg cursor-move group
+                                ${item.type === 'note' 
+                                    ? 'bg-[#F9FFB5] p-2 rounded'
+                                    : 'bg-white rounded-lg overflow-hidden'
+                                }
+                                ${selectedItem === item.id ? 'ring-2 ring-blue-500' : ''}
+                            `}
+                            style={{
+                                left: item.x,
+                                top: item.y,
+                                transform: `rotate(${item.rotation || 0}deg)`,
+                                transformOrigin: "center",
+                                width: item.type === 'flyer' ? '300px' : 'auto',
+                                touchAction: 'none',
+                                userSelect: 'none',
+                                position: 'absolute',
+                            }}
+                            onMouseDown={(e) => handleItemMouseDown(e, item.id)}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div 
+                                className="rotation-handle absolute -top-6 left-1/2 w-4 h-4 bg-blue-500 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                                style={{ 
+                                    transform: 'translateX(-50%)', 
+                                    zIndex: 50,
+                                    pointerEvents: 'auto'
+                                }}
+                            />
+                            
+                            {item.type === 'note' ? (
+                                <div className="select-none">{item.text}</div>
+                            ) : (
+                                <div className="flex flex-col select-none">
+                                    <img 
+                                        src={item.imageUrl} 
+                                        alt={item.caption}
+                                        className="w-full h-48 object-cover pointer-events-none"
+                                        draggable="false"
+                                    />
+                                    {item.caption && (
+                                        <p className="p-3 text-sm text-gray-700">
+                                            {item.caption}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </>
+        )}
     </div>
-  );
+);
 };
 
 export default Board;

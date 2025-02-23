@@ -1,9 +1,12 @@
 export type BoardItem = {
+    author: string;
+    parentBoardId: number;
     id: number;
     x: number;
     y: number;
     type: 'note' | 'flyer';
     rotation: number;
+    date: string;
   };
   
   export type Note = BoardItem & {
