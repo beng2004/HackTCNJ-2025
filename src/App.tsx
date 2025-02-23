@@ -3,12 +3,30 @@ import Board from './components/Board';
 import BoardsGrid from './components/BoardsGrid';
 import { useAuth0 } from '@auth0/auth0-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, Home, Clipboard, UserPlus, FileText, X } from 'lucide-react';
+import { ChevronRight, Home, Clipboard, UserPlus, FileText, X, ChevronDown, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
 type Section = 'daily' | 'bulletin';
 
 function App() {
+  const { user, isAuthenticated, isLoading, logout } = useAuth0();
+  const [isSidebarMinimized, setIsSidebarMinimized] = useState(true);
+  const [boardId, setBoardId] = useState<number>(0);
+  const [activeSection, setActiveSection] = useState<Section>('daily');
+  const [selectedBoardName, setSelectedBoardName] = useState<string>('');
+  const [firstTime, setFirstTime] = useState<boolean>(true);
+  const [isAddFriendsModalOpen, setIsAddFriendsModalOpen] = useState(false);
+  const [friendEmail, setFriendEmail] = useState('');
+  const [inviteStatus, setInviteStatus] = useState<{
+    message: string;
+    type: 'success' | 'error' | null;
+  }>({ message: '', type: null });
+  
+  // New states for AI Summary
+  const [isAISummaryOpen, setIsAISummaryOpen] = useState(false);
+  const [summaryContent, setSummaryContent] = useState('');
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+
   useEffect(() => {
     const addUser = async () => {
       try {
@@ -27,20 +45,7 @@ function App() {
        addUser()
         setFirstTime(false)
       }
-
    });
-  const { user, isAuthenticated, isLoading, logout } = useAuth0();
-  const [isSidebarMinimized, setIsSidebarMinimized] = useState(true);
-  const [boardId, setBoardId] = useState<number>(0);
-  const [activeSection, setActiveSection] = useState<Section>('daily');
-  const [selectedBoardName, setSelectedBoardName] = useState<string>('');
-  const [firstTime, setFirstTime] = useState<boolean>(true);
-  const [isAddFriendsModalOpen, setIsAddFriendsModalOpen] = useState(false);
-  const [friendEmail, setFriendEmail] = useState('');
-  const [inviteStatus, setInviteStatus] = useState<{
-    message: string;
-    type: 'success' | 'error' | null;
-  }>({ message: '', type: null });
 
   if (isLoading) {
     return <div>Loading ...</div>;
@@ -67,8 +72,23 @@ function App() {
   };
 
   const handleAISummary = async () => {
-    // TODO: Implement AI summary functionality
-    console.log('AI summary clicked');
+    if (isLoadingSummary) return;
+    
+    setIsLoadingSummary(true);
+    setIsAISummaryOpen(true);
+    
+    try {
+      const response = await axios.post('https://hack.tcnj.ngrok.app/summarize-ai',{}, {
+       headers: {boardId,}
+      });
+      
+      setSummaryContent(response.data.summary);
+    } catch (error) {
+      console.error('Error fetching AI summary:', error);
+      setSummaryContent('Failed to generate summary. Please try again.');
+    } finally {
+      setIsLoadingSummary(false);
+    }
   };
 
   const handleSubmitInvite = async (e: React.FormEvent) => {
@@ -87,7 +107,6 @@ function App() {
       });
       setFriendEmail('');
 
-      // Close modal after 2 seconds on success
       setTimeout(() => {
         setIsAddFriendsModalOpen(false);
         setInviteStatus({ message: '', type: null });
@@ -181,18 +200,54 @@ function App() {
                       <UserPlus size={20} />
                       <span>Add Friends</span>
                     </button>
-                    <button
-                      onClick={handleAISummary}
-                      className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                    >
-                      <FileText size={20} />
-                      <span>AI Summary</span>
-                    </button>
+                    <div className="relative">
+                      <button
+                        onClick={handleAISummary}
+                        className="flex items-center space-x-2 px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      >
+                        <FileText size={20} />
+                        <span>AI Summary</span>
+                        <ChevronDown 
+                          size={16} 
+                          className={`transform transition-transform ${isAISummaryOpen ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+
+                      {/* AI Summary Dropdown */}
+                      {isAISummaryOpen && (
+                        <div className="absolute top-full mt-2 right-0 w-96 z-50">
+                          <div className="bg-[#deb887] rounded-lg shadow-lg border-2 border-[#7B3F00] p-4">
+                            {isLoadingSummary ? (
+                              <div className="flex items-center justify-center py-8">
+                                <Loader2 className="animate-spin text-blue-900" size={24} />
+                                <span className="ml-2 text-blue-900">Generating summary...</span>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                  <h3 className="text-lg font-semibold text-[#7B3F00]">Board Summary</h3>
+                                  <button
+                                    onClick={() => setIsAISummaryOpen(false)}
+                                    className="text-[#7B3F00] hover:text-[#5B2F00]"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                                <div className="bg-[#f5e6d3] rounded p-3 min-h-[100px] max-h-[300px] overflow-y-auto">
+                                  <p className="text-[#7B3F00] whitespace-pre-wrap">{summaryContent}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
                 <span className="text-lg font-semibold">Hello, {user.name}</span>
               </div>
             </div>
+            
             
             {/* Breadcrumb Navigation */}
             {activeSection === 'bulletin' && selectedBoardName && (
