@@ -5,9 +5,10 @@ import { BoardItem, Note, Flyer } from "../types/BoardTypes";
 import axios from 'axios';
 import stickyNoteImage from '../assets/sticky.png';
 
+
 const Board = () => {
     const [boardId, setBoardId] = useState<number>();
-
+    // const [isPolling, setIsPolling] = useState(false)
     const changeBoard = (newBoardId: number) => {
       setBoardId(newBoardId);
     };
@@ -40,6 +41,7 @@ const Board = () => {
           console.error('Error deleting item:', error);
       }
   };
+
     // Make the API call on page load and refresh
     useEffect(() => {
       changeBoard(0)
@@ -95,8 +97,11 @@ const Board = () => {
       };
   
       fetchData();
-  }, []);
+      const intervalId = setInterval(fetchData, 2000);
 
+      return () => clearInterval(intervalId);
+
+  }, []);
   const boardRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const startPositionRef = useRef({ x: 0, y: 0 });
@@ -361,14 +366,8 @@ return (
       style={{ cursor: dragging ? "grabbing" : "grab" }}
       onClick={() => setSelectedItem(null)}
   >
-      {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
-              <div className="flex flex-col items-center gap-4">
-                  <div className="w-12 h-12 border-4 border-blue-900 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-blue-900 font-medium">Loading board...</p>
-              </div>
-          </div>
-      ) : error ? (
+      
+      {error ? (
           <div className="absolute inset-0 flex items-center justify-center bg-white">
               <div className="text-red-600 text-center p-4">
                   <p className="font-bold mb-2">Error loading board</p>

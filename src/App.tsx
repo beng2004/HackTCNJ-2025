@@ -59,7 +59,7 @@ function App() {
           {/* Logout Button at the Bottom */}
           { !isSidebarMinimized && (
           <button
-          onClick={() => logout({ logoutParams: { returnTo: 'http://localhost:5173/' } })}
+          onClick={() => logout({ logoutParams: { returnTo: 'http://localhost:5173/welcome' } })}
             className="bg-red-500 text-white py-2 px-4 rounded-lg mt-auto hover:bg-red-600"
           >
             Logout
