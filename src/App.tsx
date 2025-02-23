@@ -9,8 +9,7 @@ function App() {
     return <div>Loading ...</div>;
   }
   console.log(isAuthenticated)
-
-  return (
+  return (isAuthenticated && (
     <div className="min-h-screen flex" style={{ cursor: `url('assets/thumbtack.png'), auto`  }}>
       {/* Sidebar */}
       <aside
@@ -64,7 +63,7 @@ function App() {
           <Board/>
         </div>
       </main>
-    </div>
+    </div>)
   );
 }
 
