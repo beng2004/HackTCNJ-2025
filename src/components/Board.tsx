@@ -4,11 +4,13 @@ import ExpandablePlusButton from "./PlusButton";
 import { BoardItem, Note, Flyer } from "../types/BoardTypes";
 import axios from 'axios';
 import stickyNoteImage from '../assets/sticky.png';
+import { useAuth0 } from "@auth0/auth0-react";
 
 
 const Board = ({ boardId, setBoardId }: { boardId: number; setBoardId: (num: number) => void }) => {
     // const [isPolling, setIsPolling] = useState(false)
-    
+    const { user } = useAuth0();
+
     //states for api getting current posts
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
@@ -83,7 +85,7 @@ const Board = ({ boardId, setBoardId }: { boardId: number; setBoardId: (num: num
                   }
                   return null; // Ignore unrecognized types
               }).filter(Boolean); // Remove null values
-  
+              
               setItems(mappedItems);
           } catch (error) {
               console.error('Error fetching posts:', error);
@@ -94,7 +96,7 @@ const Board = ({ boardId, setBoardId }: { boardId: number; setBoardId: (num: num
       };
   
       fetchData();
-      const intervalId = setInterval(fetchData, 2000);
+      const intervalId = setInterval(fetchData, 3000);
 
       return () => clearInterval(intervalId);
 
@@ -297,7 +299,7 @@ const Board = ({ boardId, setBoardId }: { boardId: number; setBoardId: (num: num
 
     // Prepare the post data
     const postData = {
-        author: "Ben",
+        author: user.name,
         date: now,
         parentBoardId: boardId, //TODO use on backend to make sure updating correct board
         postId: newId,
@@ -308,7 +310,7 @@ const Board = ({ boardId, setBoardId }: { boardId: number; setBoardId: (num: num
         x: xPos,
         y: yPos,
     };
-
+    console.log(postData)
     try {
         // First, create the post
         if (type === 'flyer') {
