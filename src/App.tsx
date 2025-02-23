@@ -4,7 +4,7 @@ function App() {
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
   
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex" style={{ cursor: `url('assets/thumbtack.png'), auto`  }}>
       {/* Sidebar */}
       <aside
         className={`transition-all duration-300 ease-in-out ${

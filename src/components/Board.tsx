@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { Plus, ZoomIn, ZoomOut } from "lucide-react";
+import {  ZoomIn, ZoomOut, X } from "lucide-react";
 import ExpandablePlusButton from "./PlusButton";
 import { BoardItem, Note, Flyer } from "../types/BoardTypes";
 import axios from 'axios';
+import stickyNoteImage from '../assets/sticky.png';
 
 const Board = () => {
     const [boardId, setBoardId] = useState<number>();
@@ -21,6 +22,24 @@ const Board = () => {
     const [itemDragging, setItemDragging] = useState(false);
     const [rotating, setRotating] = useState(false);
     const [items, setItems] = useState<BoardItem[]>([]);
+    const handleDeleteItem = async (itemId: number, type: string) => {
+      try {
+          await axios.delete('https://hack.tcnj.ngrok.app/delete-post', {
+              headers: {
+                  'Content-Type': 'application/json',
+                  'boardId': boardId,
+                  'postId': itemId,
+                  'type': type
+              }
+          });
+          
+          // Remove item from local state
+          setItems(prev => prev.filter(item => item.id !== itemId));
+          setSelectedItem(null);
+      } catch (error) {
+          console.error('Error deleting item:', error);
+      }
+  };
     // Make the API call on page load and refresh
     useEffect(() => {
       changeBoard(0)
@@ -173,14 +192,14 @@ const Board = () => {
     };
 
     const handleGlobalMouseUp = async () => {
+      setItemDragging(false);
+      setRotating(false);
       if (selectedItem) {
         const updatedItem = items.find(item => item.id === selectedItem);
         if (updatedItem) {
           await updateItemPosition(updatedItem);
         }
       }
-      setItemDragging(false);
-      setRotating(false);
     };
 
     if (itemDragging || rotating) {
@@ -333,117 +352,150 @@ const Board = () => {
     setItems([...items, newItem]);
 };
 
-  return (
-    <div 
-        className="relative select-none w-full h-full overflow-hidden"
-        ref={boardRef}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        style={{ cursor: dragging ? "grabbing" : "grab" }}
-        onClick={() => setSelectedItem(null)}
-    >
-        {loading ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 border-4 border-blue-900 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-blue-900 font-medium">Loading board...</p>
-                </div>
-            </div>
-        ) : error ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-white">
-                <div className="text-red-600 text-center p-4">
-                    <p className="font-bold mb-2">Error loading board</p>
-                    <p>{error.message}</p>
-                </div>
-            </div>
-        ) : (
-            <>
-                <div className="absolute top-4 left-4 z-10 flex gap-4">
-                    <button 
-                        onClick={() => handleZoomButton(true)} 
-                        className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
-                    >
-                        <ZoomIn size={20} />
-                    </button>
-                    <button 
-                        onClick={() => handleZoomButton(false)} 
-                        className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
-                    >
-                        <ZoomOut size={20} />
-                    </button>
-                </div>
-
-                <div className="absolute top-4 right-4 z-10">
-                    <ExpandablePlusButton onAddItem={addItem} />
-                </div>
-
-                <div
-                    className="absolute inset-0"
-                    style={{
-                        transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-                        transformOrigin: "top left",
-                    }}
-                >
-                    {items.map((item) => (
-                        <div
-                            key={item.id}
-                            ref={(el) => {
-                                if (el) itemRefs.current.set(item.id, el);
-                                else itemRefs.current.delete(item.id);
-                            }}
-                            className={`absolute shadow-lg cursor-move group
-                                ${item.type === 'note' 
-                                    ? 'bg-[#F9FFB5] p-2 rounded'
-                                    : 'bg-white rounded-lg overflow-hidden'
-                                }
-                                ${selectedItem === item.id ? 'ring-2 ring-blue-500' : ''}
-                            `}
-                            style={{
-                                left: item.x,
-                                top: item.y,
-                                transform: `rotate(${item.rotation || 0}deg)`,
-                                transformOrigin: "center",
-                                width: item.type === 'flyer' ? '300px' : 'auto',
-                                touchAction: 'none',
-                                userSelect: 'none',
-                                position: 'absolute',
-                            }}
-                            onMouseDown={(e) => handleItemMouseDown(e, item.id)}
-                            onClick={(e) => e.stopPropagation()}
+return (
+  <div 
+      className="relative select-none w-full h-full overflow-hidden"
+      ref={boardRef}
+      onWheel={handleWheel}
+      onMouseDown={handleMouseDown}
+      style={{ cursor: dragging ? "grabbing" : "grab" }}
+      onClick={() => setSelectedItem(null)}
+  >
+      {loading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
+              <div className="flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-blue-900 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-blue-900 font-medium">Loading board...</p>
+              </div>
+          </div>
+      ) : error ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-white">
+              <div className="text-red-600 text-center p-4">
+                  <p className="font-bold mb-2">Error loading board</p>
+                  <p>{error.message}</p>
+              </div>
+          </div>
+      ) : (
+          <>
+                    <div className="absolute top-4 left-4 z-10 flex gap-4">
+                        <button 
+                            onClick={() => handleZoomButton(true)} 
+                            className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
                         >
-                            <div 
-                                className="rotation-handle absolute -top-6 left-1/2 w-4 h-4 bg-blue-500 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
-                                style={{ 
-                                    transform: 'translateX(-50%)', 
-                                    zIndex: 50,
-                                    pointerEvents: 'auto'
+                            <ZoomIn size={20} />
+                        </button>
+                        <button 
+                            onClick={() => handleZoomButton(false)} 
+                            className="bg-blue-900 text-white p-2 rounded-full hover:bg-blue-600"
+                        >
+                            <ZoomOut size={20} />
+                        </button>
+                    </div>
+
+                    <div className="absolute top-4 right-4 z-10">
+                        <ExpandablePlusButton onAddItem={addItem} />
+                    </div>
+
+                    <div
+                        className="absolute inset-0"
+                        style={{
+                            transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                            transformOrigin: "top left",
+                        }}
+                    >
+                        {items.map((item) => (
+                            <div
+                                key={item.id}
+                                ref={(el) => {
+                                    if (el) itemRefs.current.set(item.id, el);
+                                    else itemRefs.current.delete(item.id);
                                 }}
-                            />
-                            
-                            {item.type === 'note' ? (
-                                <div className="select-none">{item.text}</div>
-                            ) : (
-                                <div className="flex flex-col select-none">
-                                    <img 
-                                        src={item.imageUrl} 
-                                        alt={item.caption}
-                                        className="w-full h-48 object-cover pointer-events-none"
-                                        draggable="false"
+                                className={`absolute cursor-move group
+                                    ${item.type === 'note' 
+                                        ? 'w-[200px] h-[200px] relative'
+                                        : 'bg-white rounded-lg shadow-lg'
+                                    }
+                                    ${selectedItem === item.id ? 'ring-2 ring-blue-500' : ''}
+                                `}
+                                style={{
+                                    left: item.x,
+                                    top: item.y,
+                                    transform: `rotate(${item.rotation || 0}deg)`,
+                                    transformOrigin: "center",
+                                    width: item.type === 'flyer' ? '300px' : '200px',
+                                    touchAction: 'none',
+                                    userSelect: 'none',
+                                    position: 'absolute',
+                                }}
+                                onMouseDown={(e) => handleItemMouseDown(e, item.id)}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="relative">
+                                    {/* Delete button container */}
+                                    <div className="absolute -top-2 -right-2 z-50" style={{ transform: `rotate(${-(item.rotation || 0)}deg)` }}>
+                                        {selectedItem === item.id && (
+                                            <button
+                                                className="bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-lg"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDeleteItem(item.id, item.type);
+                                                }}
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Rotation handle */}
+                                    <div 
+                                        className="rotation-handle absolute -top-10 left-1/2 w-5 h-5 bg-blue-500 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                                        style={{ 
+                                            transform: 'translateX(-50%)', 
+                                            zIndex: 50,
+                                            pointerEvents: 'auto'
+                                        }}
                                     />
-                                    {item.caption && (
-                                        <p className="p-3 text-sm text-gray-700">
-                                            {item.caption}
-                                        </p>
+                                    
+                                    {item.type === 'note' ? (
+                                        <div className="w-full h-full">
+                                            {/* Sticky note background */}
+                                            <img 
+                                                src={stickyNoteImage} 
+                                                alt="Sticky note"
+                                                className=" inset-0 w-full h-full object-cover pointer-events-none z-0  min-h-[200px]"
+                                                draggable="false"
+                                            />
+
+                                            {/* Text content */}
+                                            <div className="absolute inset-0 p-2 flex items-center justify-center h-full">
+                                                <div className="select-none text-center break-words overflow-hidden text-[20px] leading-[1.2] break-words">
+                                                    {item.text}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col select-none overflow-hidden rounded-lg">
+                                            <img 
+                                                src={item.imageUrl} 
+                                                alt={item.caption}
+                                                className="w-full h-48 object-cover pointer-events-none"
+                                                draggable="false"
+                                            />
+                                            {item.caption && (
+                                                <p className="p-3 text-sm text-gray-700">
+                                                    {item.caption}
+                                                </p>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </>
-        )}
-    </div>
-);
+                            </div>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    );
 };
 
 export default Board;
