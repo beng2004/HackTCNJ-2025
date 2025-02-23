@@ -1,28 +1,38 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { useAuth0 } from "@auth0/auth0-react";
 
-interface Board {
-  id: number;
-  name: string;
-  type: string;
-}
 
-interface BoardsGridProps {
-  onBoardSelect: (boardId: number, boardName: string) => void;
-}
-const makeNewBoard = async (item: Board) => {
-    try {
-      await axios.post('https://hack.tcnj.ngrok.app/boards', {
-        boardId: item.id,
-        boardName: item.name,
-        boardType: item.type
-      });
-    } catch (error) {
-      console.error('Error updating item position:', error);
+    // const [isPolling, setIsPolling] = useState(false)
+    
+    interface Board {
+      id: number;
+      name: string;
+      type: string;
     }
-  };
-const BoardsGrid: React.FC<BoardsGridProps> = ({ onBoardSelect }) => {
+    
+    interface BoardsGridProps {
+      onBoardSelect: (boardId: number, boardName: string) => void;
+    }
+    const makeNewBoard = async (item: Board, email) => {
+      try {
+        console.log(email)
+
+        await axios.post('https://hack.tcnj.ngrok.app/boards', {
+          boardId: item.id,
+          boardName: item.name,
+          boardType: item.type
+        }, { headers: {
+          'userId': email,
+        }
+        }, );
+      } catch (error) {
+        console.error('Error updating item position:', error);
+      }
+    };
+    const BoardsGrid: React.FC<BoardsGridProps> = ({ onBoardSelect }) => {
+  const { user } = useAuth0();
   const [boards, setBoards] = useState<Board[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +45,11 @@ const BoardsGrid: React.FC<BoardsGridProps> = ({ onBoardSelect }) => {
   useEffect(() => {
     const fetchBoards = async () => {
       try {
-        const response = await axios.get('https://hack.tcnj.ngrok.app/boards');
+        const response = await axios.get('https://hack.tcnj.ngrok.app/boards', { headers: {
+          'userId': user.email,
+        }}, );
+        console.log(user.email)
+
         console.log('API Response:', response.data);
         const boards: Board[] = response.data.map((item: any) => ({
           id: item.boardId,
@@ -62,7 +76,7 @@ const BoardsGrid: React.FC<BoardsGridProps> = ({ onBoardSelect }) => {
 
   const handleCreateBoard = async () => {
     console.log('Creating board:', newBoardName, newBoardType);
-    const newId = Math.max(...boards.map(board => board.id), 0) + 1;
+    const newId =  Math.floor(Math.random() * 1000000) + 1;
     
     // Create the new board object
     const newBoard = {
@@ -72,7 +86,7 @@ const BoardsGrid: React.FC<BoardsGridProps> = ({ onBoardSelect }) => {
     };
   
     // Make the API call
-    await makeNewBoard(newBoard);
+    await makeNewBoard(newBoard, user.email);
     
     // Update local state immediately
     setBoards([...boards, newBoard]);
