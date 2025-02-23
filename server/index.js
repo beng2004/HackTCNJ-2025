@@ -12,7 +12,6 @@ const mongoose = require('mongoose');
 const multer = require('multer');
 require('dotenv').config();
 
-
 let uploadCounter = 0;
 
 // Initialize uploadCounter with the highest number found in the uploads folder (this is kind of redundant with since we also rename the files to postId but w/e)
@@ -36,6 +35,7 @@ const Post = require('./models/Post');
 const Flyer = require('./models/Flyer');
 const Note = require('./models/Note');
 const Comment = require('./models/Comment');
+const User = require('./models/User');
 const { OpenAI } = require('openai');
 const path = require('path');
 const axios = require('axios');
@@ -77,12 +77,10 @@ app.get('/', (req, res) => {
  * @access Public
  */
 app.post('/boards', async (req, res) => {
+  console.log('Creating board');  
   try {
-    const { boardType, boardName, boardId } = req.body;
-
-    if (!boardType) {
-      return res.status(400).json({ message: 'Missing boardType in the request body' });
-    }
+    const {boardType, boardName, boardId } = req.body;
+    const userId = req.headers.userid;
 
     const board = new Board({
       boardType,
@@ -92,6 +90,18 @@ app.post('/boards', async (req, res) => {
     console.log('Creating board:', board);
     const newBoard = await board.save();
     console.log('Board created:', newBoard);
+
+    // Add the board to the user's boards array
+    const user = await User.findOne({ userId : userId });
+    console.log('User:', userId);
+    if (user) {
+      user.allowedBoards.push(newBoard.boardId);
+      await user.save();
+      console.log('Board added to user:', user);
+    } else {
+      console.log('User not found');
+    }
+
     res.status(201).json(newBoard);
   } catch (err) {
     console.error('Error creating board:', err);
@@ -106,7 +116,16 @@ app.post('/boards', async (req, res) => {
  */
 app.get('/boards', async (req, res) => {
   try {
-    const boards = await Board.find();
+    const userId = req.headers.userid;
+    // console.log('userId:', userId);
+    const user = await User.findOne({ userId : userId });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const accessibleBoardIds = user.allowedBoards;
+    const boards = await Board.find({ boardId: { $in: accessibleBoardIds } });
     res.json(boards);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -143,7 +162,7 @@ app.post('/posts', async (req, res) => {
     await newPost.save();
     res.status(201).json(newPost);
   } catch (err) {
-    res.status(400).json({ message: err.message });
+      res.status(400).json({ message: err.message });
   }
 });
 
@@ -415,12 +434,70 @@ app.post('/summarize-ai', async (req, res) => {
   }
 });
 
+/**
+ * @route POST /users/addUser
+ * @desc Create a new user
+ * @access Public
+ */
+app.post('/users/addUser', async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    // Check if a user with the same userId already exists
+    const existingUser = await User.findOne({ userId });
+
+    if (existingUser) {
+      console.log('User already exists:', existingUser);
+      return res.status(200).json({ message: 'User already exists', user: existingUser });
+    }
+
+    const user = new User(req.body);
+    const newUser = await user.save();
+    res.status(201).json(newUser);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+/**
+ * @route POST /users/shareBoard
+ * @desc Add permissions to a user
+ * @access Public
+ */
+app.post('/users/shareBoard', async (req, res) => {
+  try {
+    const userId = req.headers.friendemail;
+    const boardId = req.headers.boardid;
+
+    if (!boardId) {
+      return res.status(400).json({ message: 'Invalid boardId in the request header' });
+    }
+
+    const user = await User.findOne({ userId: userId });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Could not share: User not found' });
+    }
+
+    // Add the new boardIds to the user's allowedBoards, avoiding duplicates
+    if (!user.allowedBoards.includes(boardId)) {
+      user.allowedBoards.push(boardId);
+    }
+
+    await user.save();
+
+    res.json({ message: 'Permissions added successfully', user });
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
 
-// Create a route to serve the index.html file
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
-});
+// // Create a route to serve the index.html file
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+// });
