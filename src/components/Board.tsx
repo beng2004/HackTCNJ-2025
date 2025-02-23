@@ -4,14 +4,13 @@ import ExpandablePlusButton from "./PlusButton";
 import { BoardItem, Note, Flyer } from "../types/BoardTypes";
 import axios from 'axios';
 import stickyNoteImage from '../assets/sticky.png';
+import { useAuth0 } from "@auth0/auth0-react";
 
 
-const Board = () => {
-    const [boardId, setBoardId] = useState<number>();
+const Board = ({ boardId, setBoardId }: { boardId: number; setBoardId: (num: number) => void }) => {
     // const [isPolling, setIsPolling] = useState(false)
-    const changeBoard = (newBoardId: number) => {
-      setBoardId(newBoardId);
-    };
+    const { user } = useAuth0();
+
     //states for api getting current posts
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
@@ -44,7 +43,6 @@ const Board = () => {
 
     // Make the API call on page load and refresh
     useEffect(() => {
-      changeBoard(0)
       
       const fetchData = async () => {
           setLoading(true);
@@ -55,6 +53,7 @@ const Board = () => {
                   'boardId': boardId, // Custom header for board ID #TODO check for boardid on backend  
                 },
               });
+              console.log(boardId)
               console.log('API Response:', response.data);
   
               const mappedItems: BoardItem[] = response.data.map((item: any) => {
@@ -86,7 +85,7 @@ const Board = () => {
                   }
                   return null; // Ignore unrecognized types
               }).filter(Boolean); // Remove null values
-  
+              
               setItems(mappedItems);
           } catch (error) {
               console.error('Error fetching posts:', error);
@@ -97,7 +96,7 @@ const Board = () => {
       };
   
       fetchData();
-      const intervalId = setInterval(fetchData, 2000);
+      const intervalId = setInterval(fetchData, 3000);
 
       return () => clearInterval(intervalId);
 
@@ -300,7 +299,7 @@ const Board = () => {
 
     // Prepare the post data
     const postData = {
-        author: "Ben",
+        author: user.name,
         date: now,
         parentBoardId: boardId, //TODO use on backend to make sure updating correct board
         postId: newId,
@@ -311,7 +310,7 @@ const Board = () => {
         x: xPos,
         y: yPos,
     };
-
+    console.log(postData)
     try {
         // First, create the post
         if (type === 'flyer') {
