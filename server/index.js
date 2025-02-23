@@ -1,10 +1,22 @@
+/**
+ * @file index.js
+ * @description Main server file for the application. Sets up the Express server, connects to MongoDB, and defines API routes for boards, posts, comments, and file uploads.
+ * @author Christopher Lam & Benjamin Guerrieri
+ */
+
+// import modules
 const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
+const mongoose = require('mongoose');
+const multer = require('multer');
+const path = require('path');
+require('dotenv').config();
+
 
 let uploadCounter = 0;
 
-// Initialize uploadCounter with the highest number found in the uploads folder
+// Initialize uploadCounter with the highest number found in the uploads folder (this is kind of redundant with since we also rename the files to postId but w/e)
 fs.readdir('server/uploads', (err, files) => {
   if (!err) {
     const numbers = files.map(file => parseInt(file, 10)).filter(num => !isNaN(num));
@@ -16,21 +28,19 @@ fs.readdir('server/uploads', (err, files) => {
 
 const app = express();
 app.use(cors());
+app.use(express.json());
+app.use('/uploads', express.static('server/uploads'));
 
-const mongoose = require('mongoose');
-require('dotenv').config();
-// console.log("MONGO_URI:", process.env.MONGO_URI);
+// database models
 const Board = require('./models/Board');
 const Post = require('./models/Post');
 const Flyer = require('./models/Flyer');
 const Note = require('./models/Note');
 const Comment = require('./models/Comment');
-const multer = require('multer');
-const path = require('path');
 
 const port = process.env.PORT || 3001;
 
-// Multer configuration
+// Multer configuration (for file uploads)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, path.join(__dirname, 'uploads'));
@@ -44,9 +54,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-app.use(express.json());
-app.use('/uploads', express.static('server/uploads'));
-
+// connect to MongoDB
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -54,13 +62,14 @@ mongoose.connect(process.env.MONGO_URI, {
 .then(() => console.log('Connected to MongoDB'))
 .catch(err => console.error('MongoDB connection error:', err));
 
+// root route 
 app.get('/', (req, res) => {
-  res.send('You werent supposed to be here');
+  res.send('You arent supposed to be here :o');
 });
 
 /**
  * @route POST /boards
- * @desc Create a new board
+ * @desc Create a new board (should have a boardType, boardName, and boardId)
  * @access Public
  */
 app.post('/boards', async (req, res) => {
@@ -78,6 +87,11 @@ app.post('/boards', async (req, res) => {
   }
 });
 
+/**
+ * @route GET /boards
+ * @desc Get all boards
+ * @access Public
+ */
 app.get('/boards', async (req, res) => {
   try {
     const boards = await Board.find();
@@ -89,7 +103,7 @@ app.get('/boards', async (req, res) => {
 
 /**
  * @route POST /posts
- * @desc Create a new post
+ * @desc Create a new post (requires type, postId, author, parentBoardId, and other data depending on the type)
  * @access Public
  */
 app.post('/posts', async (req, res) => {
@@ -98,11 +112,19 @@ app.post('/posts', async (req, res) => {
     let newPost;
 
     if (type === 'note') {
-      newPost = new Note({ postId: Number(postId), author: postData.author, parentBoardId: postData.parentBoardId, ...postData });
-      // res.status(201).json({ message: 'New Post (Note) created' });
+      newPost = new Note({
+        postId: Number(postId),
+        author: postData.author,
+        parentBoardId: postData.parentBoardId,
+        ...postData
+      });
     } else if (type === 'flyer') {
-      newPost = new Flyer({ postId: Number(postId), author: postData.author, parentBoardId: postData.parentBoardId, ...postData });
-      // res.status(201).json({ message: 'New Post (Flyer) created' });
+      newPost = new Flyer({
+        postId: Number(postId),
+        author: postData.author,
+        parentBoardId: postData.parentBoardId,
+        ...postData
+      });
     } else {
       return res.status(400).json({ message: 'Unknown type created' });
     }
@@ -114,6 +136,11 @@ app.post('/posts', async (req, res) => {
   }
 });
 
+/**
+ * @route GET /posts
+ * @desc Get all posts
+ * @access Public
+ */
 app.get('/posts', async (req, res) => {
   try {
     const posts = await Post.find();
@@ -125,22 +152,27 @@ app.get('/posts', async (req, res) => {
 
 /**
  * @route POST /comments
- * @desc Create a new comment
+ * @desc Create a new comment (TODO: INDEVELOPMENT, does nothing atm)
  * @access Public
  */
 app.post('/comments', async (req, res) => {
   try {
-    const comment = new Comment(req.body);
-    const newComment = await comment.save();
+    // const comment = new Comment(req.body);
+    // const newComment = await comment.save();
     res.status(201).json(newComment);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
+/**
+ * @route GET /comments
+ * @desc Get all comments (TODO: INDEVELOPMENT, does nothing atm)
+ * @access Public
+ */
 app.get('/comments', async (req, res) => {
   try {
-    const comments = await Comment.find();
+    // const comments = await Comment.find();
     res.json(comments);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -167,13 +199,13 @@ app.post('/update-position', async (req, res) => {
 
     const item = await model.findOne({postId: postId, parentBoardId: parentBoardId });
 
-    if (!item) {
-      return res.status(404).json({ message: 'Item not found' });
-    }
-
     item.x = x;
     item.y = y;
     item.rotation = rotation;
+
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
 
     await item.save();
 
@@ -207,6 +239,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
     const oldPath = path.join(__dirname, 'uploads', req.file.filename);
     const newPath = path.join(__dirname, 'uploads', newFilename);
 
+    // Rename the file to the postId and then search the database for the post and update the imageUrl field
     fs.rename(oldPath, newPath, (err) => {
       if (err) {
         console.error('Error renaming file:', err);
@@ -237,14 +270,14 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
 /**
  * @route DELETE /delete-post
- * @desc Delete a post (note or flyer)
+ * @desc Delete a post (note or flyer) (requires boardId, postId, and type)
  * @access Public
  */
 app.delete('/delete-post', async (req, res) => {
   try {
     const boardId = req.headers.boardid;
     const postId = req.headers.postid;
-    const type = req.headers.type; // Assuming type is passed in the header
+    const type = req.headers.type; // this is required because of the way we define our model
 
     if (!boardId || !postId || !type) {
       return res.status(400).json({ message: 'Missing boardId, postId, or type' });
@@ -283,6 +316,7 @@ app.delete('/delete-post', async (req, res) => {
   }
 });
 
+// Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
