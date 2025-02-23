@@ -10,7 +10,6 @@ const cors = require('cors');
 const fs = require('fs');
 const mongoose = require('mongoose');
 const multer = require('multer');
-const path = require('path');
 require('dotenv').config();
 
 
@@ -37,6 +36,10 @@ const Post = require('./models/Post');
 const Flyer = require('./models/Flyer');
 const Note = require('./models/Note');
 const Comment = require('./models/Comment');
+const { OpenAI } = require('openai');
+const path = require('path');
+const axios = require('axios');
+const FormData = require('form-data');
 
 const port = process.env.PORT || 3001;
 
@@ -46,9 +49,10 @@ const storage = multer.diskStorage({
     cb(null, path.join(__dirname, 'uploads'));
   },
   filename: function (req, file, cb) {
-    uploadCounter++;
+    const boardId = req.headers.boardid;
+    const postId = req.headers.postid;
     const ext = path.extname(file.originalname);
-    cb(null, uploadCounter.toString() + ext);
+    cb(null, boardId + '_' + postId + ext);
   }
 });
 
@@ -75,14 +79,22 @@ app.get('/', (req, res) => {
 app.post('/boards', async (req, res) => {
   try {
     const { boardType, boardName, boardId } = req.body;
+
+    if (!boardType) {
+      return res.status(400).json({ message: 'Missing boardType in the request body' });
+    }
+
     const board = new Board({
       boardType,
       boardName,
       boardId: Number(boardId)
     });
+    console.log('Creating board:', board);
     const newBoard = await board.save();
+    console.log('Board created:', newBoard);
     res.status(201).json(newBoard);
   } catch (err) {
+    console.error('Error creating board:', err);
     res.status(400).json({ message: err.message });
   }
 });
@@ -107,28 +119,27 @@ app.get('/boards', async (req, res) => {
  * @access Public
  */
 app.post('/posts', async (req, res) => {
+  const { type, postId, ...postData } = req.body;
+  let newPost;
+
+  if (type === 'note') {
+    newPost = new Note({
+      postId: Number(postId),
+      author: postData.author,
+      parentBoardId: postData.parentBoardId,
+      ...postData
+    });
+  } else if (type === 'flyer') {
+    newPost = new Flyer({
+      postId: Number(postId),
+      author: postData.author,
+      parentBoardId: postData.parentBoardId,
+      ...postData
+    });
+  } else {
+    return res.status(400).json({ message: 'Unknown type created' });
+  }
   try {
-    const { type, postId, ...postData } = req.body;
-    let newPost;
-
-    if (type === 'note') {
-      newPost = new Note({
-        postId: Number(postId),
-        author: postData.author,
-        parentBoardId: postData.parentBoardId,
-        ...postData
-      });
-    } else if (type === 'flyer') {
-      newPost = new Flyer({
-        postId: Number(postId),
-        author: postData.author,
-        parentBoardId: postData.parentBoardId,
-        ...postData
-      });
-    } else {
-      return res.status(400).json({ message: 'Unknown type created' });
-    }
-
     await newPost.save();
     res.status(201).json(newPost);
   } catch (err) {
@@ -143,7 +154,8 @@ app.post('/posts', async (req, res) => {
  */
 app.get('/posts', async (req, res) => {
   try {
-    const posts = await Post.find();
+    const boardId = req.headers.boardid;
+    const posts = await Post.find({ parentBoardId: boardId });
     res.json(posts);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -235,7 +247,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
     // Figure out which post to associate the image with
     const ext = path.extname(req.file.originalname);
-    const newFilename = postId + ext;
+    const newFilename = boardId + '_' + postId + ext;
     const oldPath = path.join(__dirname, 'uploads', req.file.filename);
     const newPath = path.join(__dirname, 'uploads', newFilename);
 
@@ -270,7 +282,7 @@ app.post('/upload', upload.single('file'), (req, res) => {
 
 /**
  * @route DELETE /delete-post
- * @desc Delete a post (note or flyer) (requires boardId, postId, and type)
+ * @desc Delete a post (requires boardId, postId, and type)
  * @access Public
  */
 app.delete('/delete-post', async (req, res) => {
@@ -316,7 +328,99 @@ app.delete('/delete-post', async (req, res) => {
   }
 });
 
+/**
+ * @route GET /summarize-ai
+ * @desc Summarize all posts (notes and flyers) for a given board using GenAI
+ */
+app.post('/summarize-ai', async (req, res) => {
+  console.log('Received summarize-ai request');
+  try {
+    const boardId = req.headers.boardid;
+    console.log('boardId:', boardId);
+
+    if (!boardId) {
+      console.log('Missing boardId in the request headers');
+      return res.status(400).json({ message: 'Missing boardId in the request headers' });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    console.log('apiKey:', apiKey);
+    if (!apiKey) {
+      console.log('OPENAI_API_KEY environment variable not set');
+      return res.status(500).json({ message: 'OPENAI_API_KEY environment variable not set' });
+    }
+
+    // Fetch all notes and flyers associated with the given boardId
+    const notes = await Note.find({ parentBoardId: boardId });
+    const flyers = await Flyer.find({ parentBoardId: boardId });
+
+    const openai = new OpenAI({
+      apiKey: apiKey,
+    });
+
+    let summaries = [];
+    let numNotes = 0;
+    let numFlyers = 0;
+
+    for (const note of notes) {
+      if (note.text) {
+        numNotes++;
+        try {
+          const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [{ role: "user", content: `Summarize the following content: ${note.text}` }],
+          });
+          summaries.push(completion.choices[0].message.content);
+        } catch (error) {
+          console.error('Error summarizing note:', error);
+          summaries.push(`Error summarizing note: ${error}`);
+        }
+      }
+    }
+
+    for (const flyer of flyers) {
+      if (flyer.caption) {
+        numFlyers++;
+        try {
+          const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: [{ role: "user", content: `Summarize the following content: ${flyer.caption}` }],
+          });
+          summaries.push(completion.choices[0].message.content);
+        } catch (error) {
+          console.error('Error summarizing flyer:', error);
+          summaries.push(`Error summarizing flyer: ${error}`);
+        }
+      }
+    }
+
+    try {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: [{ role: "user", content: `Summarize the following content, making sure to be concise and accurate. 
+          If there is not that much information the the prompt, make sure to make a small mention about the lack of data 
+          but do the best you can to summarize the board: ${summaries.join('\n')}` }],
+      });
+      const finalSummary = completion.choices[0].message.content;
+
+      console.log('Final Summary:', finalSummary);
+      res.json({ summary: finalSummary, numNotes: numNotes, numFlyers: numFlyers });
+    } catch (error) {
+      console.error('Error summarizing board:', error);
+      res.status(500).json({ message: `Error summarizing board: ${error}` });
+    }
+  } catch (err) {
+    console.error('Error in summarize-ai:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Start the server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
+});
+
+// Create a route to serve the index.html file
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
 });

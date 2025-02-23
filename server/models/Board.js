@@ -12,7 +12,6 @@ const boardSchema = new mongoose.Schema({
   boardId: {
     type: Number,
     required: true,
-    unique: true
   },
   posts: [{
     type: mongoose.Schema.Types.ObjectId,

@@ -2,11 +2,6 @@ const mongoose = require('mongoose');
 const Post = require('./Post');
 
 const flyerSchema = new mongoose.Schema({
-  postId: {
-    type: Number,
-    required: true,
-    unique: true
-  },
   caption: {
     type: String
   },
