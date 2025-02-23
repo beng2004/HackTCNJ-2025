@@ -1,8 +1,15 @@
 import { useState } from 'react';
 import Board from './components/Board'
+import { useAuth0 } from "@auth0/auth0-react";
+
 function App() {
+  const { user, isAuthenticated, isLoading } = useAuth0();
   const [isSidebarMinimized, setIsSidebarMinimized] = useState(false);
-  
+  if (isLoading) {
+    return <div>Loading ...</div>;
+  }
+  console.log(isAuthenticated)
+
   return (
     <div className="min-h-screen flex" style={{ cursor: `url('assets/thumbtack.png'), auto`  }}>
       {/* Sidebar */}
