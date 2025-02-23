@@ -46,11 +46,12 @@ Despite these hurdles, we built a secure, scalable, and efficient platform, sign
 ## Setup
 
 1.  Clone the repository.
-2.  Install the dependencies: `npm install`
-3.  Set up the MongoDB database and update the connection string in `.env`.
-4.  Set up the OpenAI API key in `.env`.
-5.  Run the server: `node server/index.js`
-6.  Run the command `npm run dev`
+2.  Project files can be found in the `Backend` and `Frontend` branch
+3.  Install the dependencies: `npm install`
+4.  Set up the MongoDB database and update the connection string in `.env`.
+5.  Set up the OpenAI API key in `.env`.
+6.  Run the server: `node server/index.js`
+7.  Run the command `npm run dev`
 
 ## API Endpoints
 
