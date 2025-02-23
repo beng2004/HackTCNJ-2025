@@ -416,9 +416,9 @@ app.post('/summarize-ai', async (req, res) => {
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: `Summarize the following content, making sure to be concise and accurate. 
-          If there is not that much information the the prompt, make sure to make a small mention about the lack of data 
-          but do the best you can to summarize the board: ${summaries.join('\n')}` }],
+        messages: [{ role: "user", content: `You are looking at a bulletin board with numerious notes with various content.
+          Summarize the following content, making sure to be concise and accurate. These notes are from a collection of multiple individuals.
+          Do the best you can to summarize the board: ${summaries.join('\n')}` }],
       });
       const finalSummary = completion.choices[0].message.content;
 
