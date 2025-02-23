@@ -45,55 +45,67 @@ const Board = ({ boardId, setBoardId }: { boardId: number; setBoardId: (num: num
     useEffect(() => {
       
       const fetchData = async () => {
-          setLoading(true);
-          try {
-              const response = await axios.get('https://hack.tcnj.ngrok.app/posts', {
-                headers: {
-                  'Content-Type': 'application/json',
-                  'boardId': boardId, // Custom header for board ID #TODO check for boardid on backend  
-                },
-              });
-              console.log(boardId)
-              console.log('API Response:', response.data);
-  
-              const mappedItems: BoardItem[] = response.data.map((item: any) => {
-                  if (item.type === 'note') {
-                      return {
-                          author: item.author,
-                          parentBoardId: item.parentBoardId,
-                          id: item.postId,
-                          x: item.x, // Default or randomly generated
-                          y: item.y, // Default or randomly generated
-                          rotation: item.rotation, // Default rotation
-                          date: item.date,
-                          type: 'note',
-                          text: item.content || item.text || '', // Some objects use 'content', some 'text'
-                      } as Note;
-                  } else if (item.type === 'flyer') {
-                      return {
-                          author: item.author,
-                          parentBoardId: item.parentBoardId,
-                          id: item.postId,
-                          x: item.x, // Default value
-                          y: item.y, // Default value
-                          rotation: item.rotation, // Default rotation
-                          date: item.date,
-                          type: 'flyer',
-                          imageUrl: 'https://hack.tcnj.ngrok.app/uploads/' + item.imageUrl,
-                          caption: item.caption || '',
-                      } as Flyer;
-                  }
-                  return null; // Ignore unrecognized types
-              }).filter(Boolean); // Remove null values
-              
-              setItems(mappedItems);
-          } catch (error) {
-              console.error('Error fetching posts:', error);
-              setError(error as Error);
-          } finally {
-              setLoading(false);
-          }
-      };
+        setLoading(true);
+        try {
+            const response = await axios.get('https://hack.tcnj.ngrok.app/posts', {
+              headers: {
+                'Content-Type': 'application/json',
+                'boardId': boardId,
+              },
+            });
+            
+            const mappedItems: BoardItem[] = response.data.map((item: any) => {
+                // Skip updating the selected item if it's being dragged or rotated
+                if (selectedItem === item.postId && (itemDragging || rotating)) {
+                    const existingItem = items.find(i => i.id === item.postId);
+                    return existingItem || null;
+                }
+
+                if (item.type === 'note') {
+                    return {
+                        author: item.author,
+                        parentBoardId: item.parentBoardId,
+                        id: item.postId,
+                        x: item.x,
+                        y: item.y,
+                        rotation: item.rotation,
+                        date: item.date,
+                        type: 'note',
+                        text: item.content || item.text || '',
+                    } as Note;
+                } else if (item.type === 'flyer') {
+                    return {
+                        author: item.author,
+                        parentBoardId: item.parentBoardId,
+                        id: item.postId,
+                        x: item.x,
+                        y: item.y,
+                        rotation: item.rotation,
+                        date: item.date,
+                        type: 'flyer',
+                        imageUrl: 'https://hack.tcnj.ngrok.app/uploads/' + item.imageUrl,
+                        caption: item.caption || '',
+                    } as Flyer;
+                }
+                return null;
+            }).filter(Boolean);
+            
+            setItems(prev => {
+                // Merge the new items with existing items, preserving the selected item's state
+                return mappedItems.map(newItem => {
+                    if (newItem.id === selectedItem && (itemDragging || rotating)) {
+                        return prev.find(item => item.id === selectedItem) || newItem;
+                    }
+                    return newItem;
+                });
+            });
+        } catch (error) {
+            console.error('Error fetching posts:', error);
+            setError(error as Error);
+        } finally {
+            setLoading(false);
+        }
+    };
   
       fetchData();
       const intervalId = setInterval(fetchData, 3000);
