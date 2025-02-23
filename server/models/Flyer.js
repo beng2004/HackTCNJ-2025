@@ -7,13 +7,25 @@ const flyerSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  content: {
+  caption: {
+    type: String
+  },
+  imageUrl: {
     type: String,
     required: true
   },
-  image: {
-    type: String
+  x: {
+    type: Number,
+    required: true
+  },
+  y: {
+    type: Number,
+    required: true
+  },
+  rotation: {
+    type: Number,
+    required: true
   }
 });
 
-module.exports = Post.discriminator('Flyer', flyerSchema);
+module.exports = Post.discriminator('flyer', flyerSchema);

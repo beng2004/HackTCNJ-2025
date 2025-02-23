@@ -7,10 +7,22 @@ const noteSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  content: {
+  text: {
     type: String,
+    required: true
+  },
+  x: {
+    type: Number,
+    required: true
+  },
+  y: {
+    type: Number,
+    required: true
+  },
+  rotation: {
+    type: Number,
     required: true
   }
 });
 
-module.exports = Post.discriminator('Note', noteSchema);
+module.exports = Post.discriminator('note', noteSchema);

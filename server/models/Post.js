@@ -18,6 +18,10 @@ const postSchema = new mongoose.Schema({
     type: String,
     enum: ['note', 'flyer'],
     required: true
+  },
+  parentBoardId: {
+    type: Number,
+    required: true
   }
 }, {
   discriminatorKey: 'type',

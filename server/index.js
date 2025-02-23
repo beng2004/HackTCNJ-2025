@@ -1,4 +1,22 @@
 const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+
+let uploadCounter = 0;
+
+// Initialize uploadCounter with the highest number found in the uploads folder
+fs.readdir('server/uploads', (err, files) => {
+  if (!err) {
+    const numbers = files.map(file => parseInt(file, 10)).filter(num => !isNaN(num));
+    if (numbers.length > 0) {
+      uploadCounter = Math.max(...numbers) + 1;
+    }
+  }
+});
+
+const app = express();
+app.use(cors());
+
 const mongoose = require('mongoose');
 require('dotenv').config();
 // console.log("MONGO_URI:", process.env.MONGO_URI);
@@ -10,7 +28,6 @@ const Comment = require('./models/Comment');
 const multer = require('multer');
 const path = require('path');
 
-const app = express();
 const port = process.env.PORT || 3001;
 
 // Multer configuration
@@ -19,8 +36,9 @@ const storage = multer.diskStorage({
     cb(null, path.join(__dirname, 'uploads'));
   },
   filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    uploadCounter++;
+    const ext = path.extname(file.originalname);
+    cb(null, uploadCounter.toString() + ext);
   }
 });
 
@@ -37,7 +55,7 @@ mongoose.connect(process.env.MONGO_URI, {
 .catch(err => console.error('MongoDB connection error:', err));
 
 app.get('/', (req, res) => {
-  res.send('Bulletin Board Backend');
+  res.send('You werent supposed to be here');
 });
 
 /**
@@ -80,11 +98,13 @@ app.post('/posts', async (req, res) => {
     let newPost;
 
     if (type === 'note') {
-      newPost = new Note({ postId: Number(postId), ...postData });
+      newPost = new Note({ postId: Number(postId), author: postData.author, parentBoardId: postData.parentBoardId, ...postData });
+      // res.status(201).json({ message: 'New Post (Note) created' });
     } else if (type === 'flyer') {
-      newPost = new Flyer({ postId: Number(postId), ...postData });
+      newPost = new Flyer({ postId: Number(postId), author: postData.author, parentBoardId: postData.parentBoardId, ...postData });
+      // res.status(201).json({ message: 'New Post (Flyer) created' });
     } else {
-      return res.status(400).json({ message: 'Invalid post type' });
+      return res.status(400).json({ message: 'Unknown type created' });
     }
 
     await newPost.save();
@@ -128,36 +148,139 @@ app.get('/comments', async (req, res) => {
 });
 
 /**
- * @route POST /upload
- * @desc Upload a file to the server
+ * @route POST /api/update-position
+ * @desc Update the position (x, y, rotation) of a note or flyer
  * @access Public
  */
-app.post('/upload', upload.single('file'), (req, res) => {
+app.post('/update-position', async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: 'BenG7 sucks' });
+    const {postId, type, x, y, rotation, parentBoardId } = req.body;
+
+    let model;
+    if (type === 'note') {
+      model = Note;
+    } else if (type === 'flyer') {
+      model = Flyer;
+    } else {
+      return res.status(400).json({ message: 'Invalid type' });
     }
 
-    res.status(200).json({ message: 'File uploaded successfully', filename: req.file.filename });
+    const item = await model.findOne({postId: postId, parentBoardId: parentBoardId });
+
+    if (!item) {
+      return res.status(404).json({ message: 'Item not found' });
+    }
+
+    item.x = x;
+    item.y = y;
+    item.rotation = rotation;
+
+    await item.save();
+
+    res.json({ message: 'Position updated successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-app.get('/preview/:filename', (req, res) => {
-  const { filename } = req.params;
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Image Preview</title>
-    </head>
-    <body>
-      <h1>Image Preview</h1>
-      <img src="/uploads/${filename}" alt="Image Preview" />
-    </body>
-    </html>
-  `);
+/**
+ * @route POST /upload
+ * @desc Upload a file to the server
+ * @access Public 
+ */
+app.post('/upload', upload.single('file'), (req, res) => {
+  try {
+    const boardId = req.headers.boardid;
+    const postId = req.headers.postid;
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    if (!boardId) {
+      return res.status(400).json({ message: 'No board ID provided' });
+    }
+
+    // Figure out which post to associate the image with
+    const ext = path.extname(req.file.originalname);
+    const newFilename = postId + ext;
+    const oldPath = path.join(__dirname, 'uploads', req.file.filename);
+    const newPath = path.join(__dirname, 'uploads', newFilename);
+
+    fs.rename(oldPath, newPath, (err) => {
+      if (err) {
+        console.error('Error renaming file:', err);
+        return res.status(500).json({ message: 'Error renaming file' });
+      }
+
+      res.status(200).json({ message: 'File uploaded successfully', filename: newFilename, postId: postId });
+
+      Flyer.findOneAndUpdate({ postId: Number(postId) }, { $set: {imageUrl: newFilename} }, { new: true })
+        .then(updatedFlyer => {
+          console.log("newFilename:", newFilename);
+          console.log("Updated Flyer:", updatedFlyer);
+          if (!updatedFlyer) {
+            console.log("Flyer not found");
+          } else {
+            console.log("Flyer updated successfully");
+          }
+        })
+        .catch(err => {
+          console.error("Error updating flyer:", err);
+          console.error("Error details:", err.message, err.stack);
+        });
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+/**
+ * @route DELETE /delete-post
+ * @desc Delete a post (note or flyer)
+ * @access Public
+ */
+app.delete('/delete-post', async (req, res) => {
+  try {
+    const boardId = req.headers.boardid;
+    const postId = req.headers.postid;
+    const type = req.headers.type; // Assuming type is passed in the header
+
+    if (!boardId || !postId || !type) {
+      return res.status(400).json({ message: 'Missing boardId, postId, or type' });
+    }
+
+    let model;
+    if (type === 'note') {
+      model = Note;
+    } else if (type === 'flyer') {
+      model = Flyer;
+    } else {
+      return res.status(400).json({ message: 'Invalid type' });
+    }
+
+    const deletedPost = await model.findOneAndDelete({ postId: postId, parentBoardId: boardId });
+
+    if (!deletedPost) {
+      return res.status(404).json({ message: 'Post not found' });
+    }
+
+    // Delete image in the local uploads folder (will need to be updated when switching images to a DB)
+    if (deletedPost.imageUrl) {
+      const imagePath = path.join(__dirname, 'uploads', deletedPost.imageUrl);
+      fs.unlink(imagePath, (err) => {
+        if (err) {
+          console.error('Error deleting image:', err);
+        } else {
+          console.log('Image deleted successfully:', imagePath);
+        }
+      });
+    }
+
+    res.json({ message: 'Post deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 app.listen(port, () => {
